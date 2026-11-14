@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#7a0000" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>C&amp;C — Chai &amp; Chick | Sales, Expenses &amp; Credit</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='48' fill='%238a0000' stroke='%23d4af63' stroke-width='5'/><text x='50%25' y='56%25' text-anchor='middle' fill='%23f6e3ba' font-size='34' font-family='Arial' font-weight='bold'>C%26C</text></svg>" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --red-dark: #680000;
+      --red-main: #9e0000;
+      --red-light: #b81414;
+      --gold-light: #f6e3ba;
+      --gold-main: #d4af63;
+      --gold-dark: #a67c2e;
+      --bg: #faf6f0;
+      --card: #ffffff;
+      --text: #2b1818;
+      --muted: #6e5a5a;
+      --border: #eadbc2;
+      --success: #15803d;
+      --danger: #b91c1c;
+      --amber: #b45309;
+    }
+
+    * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+    body { margin: 0; background: var(--bg); color: var(--text); }
+
+    header {
+      background: radial-gradient(circle at top left, var(--red-light), var(--red-dark) 80%);
+      color: var(--gold-light);
+      padding: 12px 16px;
+      border-bottom: 3px solid var(--gold-main);
+      display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px;
+      box-shadow: 0 4px 12px rgba(104, 0, 0, 0.25);
+      position: sticky; top: 0; z-index: 20;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand-emblem {
+      width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
+      border: 2px solid var(--gold-main); background: rgba(0, 0, 0, 0.25);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 900; color: var(--gold-light); font-size: 0.95rem;
+    }
+    .brand-title h1 { margin: 0; font-size: 1.12rem; color: var(--gold-light); }
+    .brand-title p { margin: 2px 0 0; font-size: 0.74rem; color: #f0d7a3; display: flex; align-items: center; gap: 6px; }
+    .sync-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: #fbbf24; }
+    .sync-dot.online { background: #4ade80; box-shadow: 0 0 6px #4ade80; }
+
+    .header-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+
+    button {
+      cursor: pointer; border: none; border-radius: 7px; padding: 8px 12px;
+      font-weight: 600; font-size: 0.82rem; transition: 0.15s; display: inline-flex; align-items: center; gap: 5px;
+    }
+    .btn-gold { background: linear-gradient(135deg, var(--gold-light), var(--gold-main)); color: #4a0000; border: 1px solid var(--gold-dark); }
+    .btn-ghost-gold { background: rgba(255,255,255,0.12); color: var(--gold-light); border: 1px solid rgba(212, 175, 99, 0.55); }
+    .btn-sale { background: var(--success); color: #fff; }
+    .btn-expense { background: var(--red-main); color: var(--gold-light); border: 1px solid var(--red-dark); }
+    .btn-outline { background: #fff; border: 1px solid var(--border); color: var(--text); }
+    .btn-settle { background: #fef3c7; color: #92400e; border: 1px solid #f59e0b; }
+    .btn-sm { padding: 5px 8px; font-size: 0.74rem; }
+
+    input, select, textarea {
+      width: 100%; padding: 10px; border: 1px solid var(--border);
+      border-radius: 7px; font-size: 0.95rem; background: #fff; color: var(--text);
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none; border-color: var(--gold-dark); box-shadow: 0 0 0 2px rgba(212, 175, 99, 0.25);
+    }
+    label { display: block; font-size: 0.73rem; font-weight: 700; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; }
+
+    .container { max-width: 1260px; margin: 14px auto; padding: 0 12px 50px; }
+
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 10px; margin-bottom: 14px; }
+    .card { background: var(--card); border-radius: 12px; padding: 15px; border: 1px solid var(--border); box-shadow: 0 2px 8px rgba(104, 0, 0, 0.05); }
+    .kpi-card { border-top: 4px solid var(--gold-main); }
+    .kpi-card.red-accent { border-top-color: var(--red-main); }
+    .kpi-card.amber-accent { border-top-color: #d97706; background: #fffdf7; }
+    .kpi-title { font-size: 0.71rem; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+    .kpi-value { font-size: 1.4rem; font-weight: 800; margin: 4px 0 3px; }
+    .kpi-sub { font-size: 0.74rem; color: var(--muted); line-height: 1.35; }
+    .text-green { color: var(--success); }
+    .text-red { color: var(--danger); }
+    .text-amber { color: var(--amber); }
+
+    .main-grid { display: grid; grid-template-columns: 370px 1fr; gap: 16px; align-items: start; }
+    @media (max-width: 920px) { .main-grid { grid-template-columns: 1fr; } }
+
+    .form-group { margin-bottom: 11px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+    .tab {
+      flex: 1; text-align: center; padding: 10px; border-radius: 8px;
+      background: #f5efe4; font-weight: 700; cursor: pointer; font-size: 0.88rem;
+      border: 1px solid var(--border); color: var(--muted);
+    }
+    .tab.active-sale { background: #dcfce7; color: #166534; border-color: #86efac; }
+    .tab.active-expense { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+
+    .mode-pills { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+    .mode-pill {
+      padding: 10px 4px; text-align: center; border: 1px solid var(--border); border-radius: 7px;
+      cursor: pointer; font-weight: 700; font-size: 0.8rem; background: #fcf8f0; color: var(--muted);
+    }
+    .mode-pill.active { background: var(--red-main); color: var(--gold-light); border-color: var(--red-dark); }
+    .mode-pill.active-credit { background: #b45309; color: #fff; border-color: #92400e; }
+
+    .credit-box {
+      background: #fffbeb; border: 1px dashed #f59e0b; padding: 10px; border-radius: 8px; margin-bottom: 11px;
+    }
+
+    .filter-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+    .filter-bar > div { flex: 1; min-width: 115px; }
+
+    .reconciliation {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(115px, 1fr));
+      gap: 8px; margin-bottom: 14px; background: #fcf8f0; padding: 10px; border-radius: 8px; border: 1px solid var(--border);
+    }
+    .rec-item span { font-size: 0.68rem; color: var(--muted); display: block; text-transform: uppercase; font-weight: 700; }
+    .rec-item strong { display: block; font-size: 0.92rem; margin-top: 2px; }
+
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+    th, td { text-align: left; padding: 9px 7px; border-bottom: 1px solid var(--border); }
+    th { color: var(--red-dark); font-weight: 700; font-size: 0.72rem; text-transform: uppercase; background: #fcf8f0; white-space: nowrap; }
+    .badge { padding: 3px 7px; border-radius: 999px; font-size: 0.69rem; font-weight: 700; display: inline-block; }
+    .badge-sale { background: #dcfce7; color: #166534; }
+    .badge-expense { background: #fee2e2; color: #991b1b; }
+    .badge-credit { background: #fef3c7; color: #92400e; border: 1px solid #f59e0b; }
+
+    .cat-box { margin-top: 14px; background: #fcf8f0; border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+    .cat-box h4 { margin: 0 0 8px; font-size: 0.82rem; color: var(--red-dark); text-transform: uppercase; }
+    .cat-row { display: flex; justify-content: space-between; font-size: 0.83rem; padding: 4px 0; border-bottom: 1px dashed #e6d8be; }
+    .cat-row:last-child { border-bottom: none; }
+
+    .modal-bg {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 50;
+      display: none; align-items: center; justify-content: center; padding: 16px;
+    }
+    .modal-bg.open { display: flex; }
+    .modal { background: #fff; border-radius: 12px; max-width: 440px; width: 100%; padding: 20px; border: 2px solid var(--gold-main); }
+    .modal h3 { margin-top: 0; color: var(--red-dark); }
+
+    @media print {
+      .no-print { display: none !important; }
+      header { position: static; background: #fff !important; color: #000 !important; border-bottom: 2px solid #000; box-shadow: none; }
+      .brand-title h1, .brand-title p { color: #000 !important; }
+      .main-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-emblem">C&amp;C</div>
+    <div class="brand-title">
+      <h1>C&amp;C — Chai &amp; Chick</h1>
+      <p><span id="syncDot" class="sync-dot"></span> <span id="syncText">Local Mode (Setup Cloud Sync)</span></p>
+    </div>
+  </div>
+  <div class="header-actions no-print">
+    <button class="btn-gold" onclick="openCloudModal()">Cloud Sync (Laptop + Mobile)</button>
+    <button class="btn-ghost-gold" onclick="syncFromCloud(true)">Sync Now</button>
+    <button class="btn-ghost-gold" onclick="exportCSV()">Excel</button>
+    <button class="btn-ghost-gold" onclick="window.print()">Print</button>
+  </div>
+</header>
+
+<div class="container">
+  <!-- KPI Summary -->
+  <div class="kpi-grid">
+    <div class="card kpi-card">
+      <div class="kpi-title">Total Sales</div>
+      <div class="kpi-value text-green" id="kpiSales">0.00</div>
+      <div class="kpi-sub" id="kpiSalesBreak">Cash: 0 | Online: 0 | C&amp;C: 0 | Credit: 0</div>
+    </div>
+    <div class="card kpi-card red-accent">
+      <div class="kpi-title">Total Expenses &amp; Purchases</div>
+      <div class="kpi-value text-red" id="kpiExpenses">0.00</div>
+      <div class="kpi-sub" id="kpiExpBreak">Cash: 0 | UPI: 0 | Credit: 0</div>
+    </div>
+    <div class="card kpi-card">
+      <div class="kpi-title">Cash in Hand &amp; Net</div>
+      <div class="kpi-value" id="kpiNet">0.00</div>
+      <div class="kpi-sub" id="kpiCashNet">Cash in Hand: 0</div>
+    </div>
+    <div class="card kpi-card amber-accent">
+      <div class="kpi-title">Pending Credit</div>
+      <div class="kpi-value text-amber" id="kpiCreditSale" style="font-size:1.25rem;">To Receive: 0.00</div>
+      <div class="kpi-sub" id="kpiCreditBuy" style="font-weight:700; color:var(--red-dark);">Credit Purchase (To Pay): 0.00</div>
+    </div>
+  </div>
+
+  <div class="main-grid">
+    <!-- Entry Forms -->
+    <div class="card no-print">
+      <div class="tabs">
+        <div id="tabSale" class="tab active-sale" onclick="switchTab('sale')">+ Daily Sales</div>
+        <div id="tabExpense" class="tab" onclick="switchTab('expense')">- Expense / Purchase</div>
+      </div>
+
+      <!-- SALES FORM -->
+      <form id="saleForm" onsubmit="saveSale(event)">
+        <div class="form-group">
+          <label>Date *</label>
+          <input type="date" id="sDate" required />
+        </div>
+        <div class="form-row form-group">
+          <div>
+            <label>Cash Sale</label>
+            <input type="number" id="sCash" step="0.01" min="0" inputmode="decimal" placeholder="0.00" />
+          </div>
+          <div>
+            <label>Online Transaction</label>
+            <input type="number" id="sOnline" step="0.01" min="0" inputmode="decimal" placeholder="0.00" />
+          </div>
+        </div>
+        <div class="form-row form-group">
+          <div>
+            <label>C&amp;C Sales</label>
+            <input type="number" id="sCC" step="0.01" min="0" inputmode="decimal" placeholder="0.00" />
+          </div>
+          <div>
+            <label style="color:var(--amber);">Credit Sale</label>
+            <input type="number" id="sCredit" step="0.01" min="0" inputmode="decimal" placeholder="0.00" oninput="toggleCreditCustomer()" />
+          </div>
+        </div>
+
+        <div id="creditCustBox" class="credit-box" style="display:none;">
+          <label style="color:var(--amber);">Credit Customer Name *</label>
+          <input type="text" id="sCreditCustomer" placeholder="Who took credit? (e.g. Rahul, Staff)" />
+        </div>
+
+        <div class="form-group">
+          <label>Remarks</label>
+          <textarea id="sRemarks" rows="2" placeholder="Optional remarks..."></textarea>
+        </div>
+        <button type="submit" id="btnSaveSale" class="btn-sale" style="width:100%; justify-content:center; padding:12px;">
+          Save Sales Entry
+        </button>
+      </form>
+
+      <!-- EXPENSE / PURCHASE FORM -->
+      <form id="expenseForm" onsubmit="saveExpense(event)" style="display:none;">
+        <div class="form-group">
+          <label>Date *</label>
+          <input type="date" id="eDate" required />
+        </div>
+        <div class="form-group">
+          <label>Particular *</label>
+          <input type="text" id="eParticular" list="particularList" required placeholder="Type particular (e.g. Milk, Chicken, Gas...)" autocomplete="off" />
+          <datalist id="particularList"></datalist>
+        </div>
+        <div class="form-group">
+          <label>Payment Mode *</label>
+          <div class="mode-pills">
+            <div id="pillCash" class="mode-pill active" onclick="setExpMode('Cash')">Cash</div>
+            <div id="pillUpi" class="mode-pill" onclick="setExpMode('UPI Transfer')">UPI Transfer</div>
+            <div id="pillCredit" class="mode-pill" onclick="setExpMode('Credit Purchase')">Credit Purchase</div>
+          </div>
+        </div>
+
+        <div id="creditSuppBox" class="credit-box" style="display:none;">
+          <label style="color:var(--amber);">Supplier / Shop Name *</label>
+          <input type="text" id="eSupplier" placeholder="Who do we owe? (e.g. Fresh Chicken Shop)" />
+        </div>
+
+        <div class="form-group">
+          <label>Amount *</label>
+          <input type="number" id="eAmount" step="0.01" min="0.01" inputmode="decimal" required placeholder="0.00" />
+        </div>
+        <div class="form-group">
+          <label>Remarks</label>
+          <textarea id="eRemarks" rows="2" placeholder="Optional remarks..."></textarea>
+        </div>
+        <button type="submit" id="btnSaveExp" class="btn-expense" style="width:100%; justify-content:center; padding:12px;">
+          Save Expense / Purchase
+        </button>
+      </form>
+    </div>
+
+    <!-- Ledger -->
+    <div class="card">
+      <div class="filter-bar no-print">
+        <div>
+          <label>Period</label>
+          <select id="filterPeriod" onchange="applyQuickPeriod()">
+            <option value="today">Today</option>
+            <option value="week">Last 7 Days</option>
+            <option value="month" selected>This Month</option>
+            <option value="all">All Time</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+        <div>
+          <label>From</label>
+          <input type="date" id="filterFrom" onchange="onCustomDate()" />
+        </div>
+        <div>
+          <label>To</label>
+          <input type="date" id="filterTo" onchange="onCustomDate()" />
+        </div>
+        <div>
+          <label>Show</label>
+          <select id="filterType" onchange="render()">
+            <option value="all">All Entries</option>
+            <option value="sale">Sales Only</option>
+            <option value="expense">Expenses / Purchases</option>
+            <option value="credit">Pending Credit Only</option>
+          </select>
+        </div>
+        <div>
+          <label>Search</label>
+          <input type="text" id="filterSearch" placeholder="Name, particular, remarks..." oninput="render()" />
+        </div>
+      </div>
+
+      <div class="reconciliation">
+        <div class="rec-item"><span>Cash Sale</span><strong class="text-green" id="recCashSale">0.00</strong></div>
+        <div class="rec-item"><span>Online Trans.</span><strong class="text-green" id="recOnlineSale">0.00</strong></div>
+        <div class="rec-item"><span>C&amp;C Sales</span><strong class="text-green" id="recCCSale">0.00</strong></div>
+        <div class="rec-item"><span>Credit Sale</span><strong class="text-amber" id="recCreditSale">0.00</strong></div>
+        <div class="rec-item"><span>Cash Exp</span><strong class="text-red" id="recCashExp">0.00</strong></div>
+        <div class="rec-item"><span>UPI Exp</span><strong class="text-red" id="recUpiExp">0.00</strong></div>
+        <div class="rec-item"><span>Credit Purchase</span><strong class="text-amber" id="recCreditBuy">0.00</strong></div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Type</th>
+              <th>Particular / Sale Type</th>
+              <th>Mode</th>
+              <th>Remarks / Party</th>
+              <th>Amount</th>
+              <th class="no-print">Action</th>
+            </tr>
+          </thead>
+          <tbody id="ledgerBody"></tbody>
+        </table>
+      </div>
+
+      <div class="cat-box">
+        <h4>Expenses &amp; Purchases by Particular</h4>
+        <div id="expCatBox"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Cloud Sync Settings Modal -->
+<div id="cloudModal" class="modal-bg">
+  <div class="modal">
+    <h3>Sync Laptop &amp; Mobile Phone</h3>
+    <p style="font-size:0.84rem; color:var(--muted); margin-top:0;">
+      Enter the same Supabase URL &amp; Key on both your laptop and mobile phone so all entries stay synced live.
+    </p>
+    <div class="form-group">
+      <label>Device Name (e.g. Owner Mobile, Shop Laptop)</label>
+      <input type="text" id="cfgDevice" placeholder="Owner Mobile" />
+    </div>
+    <div class="form-group">
+      <label>Currency Symbol</label>
+      <input type="text" id="cfgCurrency" placeholder="₹" />
+    </div>
+    <div class="form-group">
+      <label>Supabase Project URL</label>
+      <input type="url" id="cfgUrl" placeholder="https://xxxxx.supabase.co" />
+    </div>
+    <div class="form-group">
+      <label>Supabase Anon Public Key</label>
+      <input type="text" id="cfgKey" placeholder="eyJhbGciOi..." />
+    </div>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:14px;">
+      <button class="btn-outline" onclick="closeCloudModal()">Cancel</button>
+      <button class="btn-sale" onclick="saveCloudSettings()">Save &amp; Connect</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Paste your Supabase URL & Key here once so Laptop & Mobile connect automatically!
+  const DEFAULT_SUPABASE_URL = '';
+  const DEFAULT_SUPABASE_KEY = '';
+
+  const STORAGE_KEY = 'cc_entries_cache_v1';
+  const CFG_KEY = 'cc_cloud_cfg_v1';
+
+  let cfg = JSON.parse(localStorage.getItem(CFG_KEY) || JSON.stringify({
+    url: DEFAULT_SUPABASE_URL,
+    key: DEFAULT_SUPABASE_KEY,
+    currency: '₹',
+    device: 'Device'
+  }));
+  if (!cfg.url && DEFAULT_SUPABASE_URL) cfg.url = DEFAULT_SUPABASE_URL;
+  if (!cfg.key && DEFAULT_SUPABASE_KEY) cfg.key = DEFAULT_SUPABASE_KEY;
+
+  let entries = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+  let expMode = 'Cash';
+  let sb = null;
+
+  function todayStr() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  function escapeHtml(str) {
+    return String(str || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+
+  function fmtMoney(num) {
+    return (cfg.currency || '₹') + Number(num || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function updateParticularSuggestions() {
+    const past = [...new Set(entries.filter(x => x.type === 'expense' && x.category).map(x => x.category))];
+    document.getElementById('particularList').innerHTML = past.map(p => `<option value="${escapeHtml(p)}">`).join('');
+  }
+
+  function initSupabase() {
+    const dot = document.getElementById('syncDot');
+    const txt = document.getElementById('syncText');
+    if (cfg.url && cfg.key && window.supabase) {
+      try {
+        sb = window.supabase.createClient(cfg.url.trim(), cfg.key.trim());
+        dot.classList.add('online');
+        txt.textContent = `Live Cloud Sync (${cfg.device || 'Connected'})`;
+        syncFromCloud(false);
+      } catch (err) {
+        sb = null;
+        dot.classList.remove('online');
+        txt.textContent = 'Cloud Config Error';
+      }
+    } else {
+      sb = null;
+      dot.classList.remove('online');
+      txt.textContent = 'Local Mode (Click "Cloud Sync")';
+    }
+  }
+
+  async function syncFromCloud(showAlert) {
+    if (!sb) {
+      if (showAlert) alert('Please enter your Supabase URL & Key in "Cloud Sync (Laptop + Mobile)" first.');
+      return;
+    }
+    const { data, error } = await sb
+      .from('cc_entries')
+      .select('*')
+      .order('entry_date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(2000);
+
+    if (error) {
+      console.error(error);
+      document.getElementById('syncText').textContent = 'Sync Error';
+      if (showAlert) alert('Sync failed: ' + error.message);
+      return;
+    }
+
+    entries = (data || []).map(r => ({
+      id: r.id,
+      type: r.type,
+      date: r.entry_date,
+      category: r.category,
+      mode: r.mode,
+      amount: Number(r.amount),
+      remarks: r.remarks || '-'
+    }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    document.getElementById('syncText').textContent = `Synced (${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})})`;
+    render();
+  }
+
+  function init() {
+    document.getElementById('sDate').value = todayStr();
+    document.getElementById('eDate').value = todayStr();
+    applyQuickPeriod();
+    initSupabase();
+    setInterval(() => { if (sb && !document.hidden) syncFromCloud(false); }, 15000);
+  }
+
+  function switchTab(tab) {
+    document.getElementById('tabSale').className = 'tab' + (tab === 'sale' ? ' active-sale' : '');
+    document.getElementById('tabExpense').className = 'tab' + (tab === 'expense' ? ' active-expense' : '');
+    document.getElementById('saleForm').style.display = tab === 'sale' ? 'block' : 'none';
+    document.getElementById('expenseForm').style.display = tab === 'expense' ? 'block' : 'none';
+  }
+
+  function toggleCreditCustomer() {
+    const val = parseFloat(document.getElementById('sCredit').value) || 0;
+    document.getElementById('creditCustBox').style.display = val > 0 ? 'block' : 'none';
+  }
+
+  function setExpMode(mode) {
+    expMode = mode;
+    document.getElementById('pillCash').className = 'mode-pill' + (mode === 'Cash' ? ' active' : '');
+    document.getElementById('pillUpi').className = 'mode-pill' + (mode === 'UPI Transfer' ? ' active' : '');
+    document.getElementById('pillCredit').className = 'mode-pill' + (mode === 'Credit Purchase' ? ' active-credit' : '');
+    document.getElementById('creditSuppBox').style.display = mode === 'Credit Purchase' ? 'block' : 'none';
+  }
+
+  async function saveSale(e) {
+    e.preventDefault();
+    const date = document.getElementById('sDate').value;
+    const cash = parseFloat(document.getElementById('sCash').value) || 0;
+    const online = parseFloat(document.getElementById('sOnline').value) || 0;
+    const cc = parseFloat(document.getElementById('sCC').value) || 0;
+    const credit = parseFloat(document.getElementById('sCredit').value) || 0;
+    const cust = document.getElementById('sCreditCustomer').value.trim();
+    const remarks = document.getElementById('sRemarks').value.trim();
+
+    if (cash <= 0 && online <= 0 && cc <= 0 && credit <= 0) {
+      return alert('Enter at least one sale amount.');
+    }
+    if (credit > 0 && !cust) {
+      return alert('Please enter the Credit Customer Name.');
+    }
+
+    const items = [];
+    if (cash > 0) items.push({ category: 'Cash Sale', mode: 'Cash', amount: cash, remarks: remarks || '-' });
+    if (online > 0) items.push({ category: 'Online Transaction', mode: 'Online', amount: online, remarks: remarks || '-' });
+    if (cc > 0) items.push({ category: 'C&C Sales', mode: 'C&C Sales', amount: cc, remarks: remarks || '-' });
+    if (credit > 0) {
+      const creditNote = remarks ? `${cust} (${remarks})` : cust;
+      items.push({ category: 'Credit Sale', mode: 'Credit', amount: credit, remarks: creditNote });
+    }
+
+    const newRows = items.map(item => ({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      type: 'sale',
+      date,
+      category: item.category,
+      mode: item.mode,
+      amount: item.amount,
+      remarks: item.remarks
+    }));
+
+    entries = [...newRows, ...entries];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    render();
+
+    if (sb) {
+      const btn = document.getElementById('btnSaveSale');
+      btn.textContent = 'Syncing...'; btn.disabled = true;
+      const { error } = await sb.from('cc_entries').insert(newRows.map(r => ({
+        id: r.id, type: r.type, entry_date: r.date, category: r.category,
+        mode: r.mode, amount: r.amount, remarks: r.remarks, device_name: cfg.device || 'Device'
+      })));
+      btn.textContent = 'Save Sales Entry'; btn.disabled = false;
+      if (error) alert('Saved locally, Cloud Sync error: ' + error.message);
+      else syncFromCloud(false);
+    }
+
+    document.getElementById('sCash').value = '';
+    document.getElementById('sOnline').value = '';
+    document.getElementById('sCC').value = '';
+    document.getElementById('sCredit').value = '';
+    document.getElementById('sCreditCustomer').value = '';
+    document.getElementById('sRemarks').value = '';
+    toggleCreditCustomer();
+  }
+
+  async function saveExpense(e) {
+    e.preventDefault();
+    const particular = document.getElementById('eParticular').value.trim();
+    const supplier = document.getElementById('eSupplier').value.trim();
+    const remarks = document.getElementById('eRemarks').value.trim();
+
+    if (!particular) return alert('Please type the Particular.');
+    if (expMode === 'Credit Purchase' && !supplier) return alert('Please enter the Supplier / Shop Name.');
+
+    const fullRemarks = expMode === 'Credit Purchase'
+      ? (remarks ? `${supplier} (${remarks})` : supplier)
+      : (remarks || '-');
+
+    const row = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      type: 'expense',
+      date: document.getElementById('eDate').value,
+      category: particular,
+      mode: expMode,
+      amount: parseFloat(document.getElementById('eAmount').value),
+      remarks: fullRemarks
+    };
+
+    entries.unshift(row);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    render();
+
+    if (sb) {
+      const btn = document.getElementById('btnSaveExp');
+      btn.textContent = 'Syncing...'; btn.disabled = true;
+      const { error } = await sb.from('cc_entries').insert([{
+        id: row.id, type: row.type, entry_date: row.date, category: row.category,
+        mode: row.mode, amount: row.amount, remarks: row.remarks, device_name: cfg.device || 'Device'
+      }]);
+      btn.textContent = 'Save Expense / Purchase'; btn.disabled = false;
+      if (error) alert('Saved locally, Cloud Sync error: ' + error.message);
+      else syncFromCloud(false);
+    }
+
+    document.getElementById('eParticular').value = '';
+    document.getElementById('eSupplier').value = '';
+    document.getElementById('eAmount').value = '';
+    document.getElementById('eRemarks').value = '';
+  }
+
+  async function settleCredit(id) {
+    const item = entries.find(x => x.id === id);
+    if (!item) return;
+    const isCash = confirm(`Settle ${fmtMoney(item.amount)} (${item.remarks})?\n\nClick OK for CASH.\nClick Cancel to choose ONLINE / UPI.`);
+    let newMode = '';
+    if (isCash) {
+      newMode = 'Cash';
+    } else {
+      const isOnline = confirm(`Settle via ${item.type === 'sale' ? 'Online Transaction' : 'UPI Transfer'}?`);
+      if (!isOnline) return;
+      newMode = item.type === 'sale' ? 'Online' : 'UPI Transfer';
+    }
+
+    const newCat = item.type === 'sale' ? (newMode === 'Cash' ? 'Cash Sale' : 'Online Transaction') : item.category;
+    const newRemarks = `${item.remarks} [Settled ${todayStr()}]`;
+
+    item.mode = newMode;
+    item.category = newCat;
+    item.remarks = newRemarks;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    render();
+
+    if (sb) {
+      const { error } = await sb.from('cc_entries')
+        .update({ mode: newMode, category: newCat, remarks: newRemarks })
+        .eq('id', id);
+      if (error) alert('Cloud update error: ' + error.message);
+      else syncFromCloud(false);
+    }
+  }
+
+  async function deleteEntry(id) {
+    if (!confirm('Delete this entry across all devices?')) return;
+    entries = entries.filter(x => x.id !== id);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    render();
+    if (sb) {
+      const { error } = await sb.from('cc_entries').delete().eq('id', id);
+      if (error) alert('Cloud delete error: ' + error.message);
+    }
+  }
+
+  function applyQuickPeriod() {
+    const p = document.getElementById('filterPeriod').value;
+    const today = todayStr();
+    const d = new Date();
+    let from = '', to = today;
+
+    if (p === 'today') from = today;
+    else if (p === 'week') { d.setDate(d.getDate() - 6); from = d.toISOString().slice(0, 10); }
+    else if (p === 'month') from = today.slice(0, 8) + '01';
+    else if (p === 'all') { from = ''; to = ''; }
+
+    if (p !== 'custom') {
+      document.getElementById('filterFrom').value = from;
+      document.getElementById('filterTo').value = to;
+    }
+    render();
+  }
+
+  function onCustomDate() {
+    document.getElementById('filterPeriod').value = 'custom';
+    render();
+  }
+
+  function getFiltered() {
+    const from = document.getElementById('filterFrom').value;
+    const to = document.getElementById('filterTo').value;
+    const type = document.getElementById('filterType').value;
+    const q = document.getElementById('filterSearch').value.toLowerCase().trim();
+
+    return entries.filter(x => {
+      if (from && x.date < from) return false;
+      if (to && x.date > to) return false;
+      if (type === 'sale' && x.type !== 'sale') return false;
+      if (type === 'expense' && x.type !== 'expense') return false;
+      if (type === 'credit' && x.mode !== 'Credit' && x.mode !== 'Credit Purchase') return false;
+      if (q && !`${x.category} ${x.mode} ${x.remarks}`.toLowerCase().includes(q)) return false;
+      return true;
+    }).sort((a, b) => b.date.localeCompare(a.date));
+  }
+
+  function render() {
+    updateParticularSuggestions();
+    const list = getFiltered();
+    let cashSale = 0, onlineSale = 0, ccSale = 0, creditSale = 0;
+    let cashExp = 0, upiExp = 0, creditBuy = 0;
+    const expCats = {};
+
+    list.forEach(x => {
+      if (x.type === 'sale') {
+        if (x.mode === 'Cash') cashSale += x.amount;
+        else if (x.mode === 'Online') onlineSale += x.amount;
+        else if (x.mode === 'C&C Sales') ccSale += x.amount;
+        else if (x.mode === 'Credit') creditSale += x.amount;
+      } else {
+        if (x.mode === 'Cash') cashExp += x.amount;
+        else if (x.mode === 'UPI Transfer') upiExp += x.amount;
+        else if (x.mode === 'Credit Purchase') creditBuy += x.amount;
+        expCats[x.category] = (expCats[x.category] || 0) + x.amount;
+      }
+    });
+
+    const totalSales = cashSale + onlineSale + ccSale + creditSale;
+    const totalExp = cashExp + upiExp + creditBuy;
+    const net = totalSales - totalExp;
+
+    document.getElementById('kpiSales').textContent = fmtMoney(totalSales);
+    document.getElementById('kpiSalesBreak').textContent = `Cash: ${fmtMoney(cashSale)} | Online: ${fmtMoney(onlineSale)} | C&C: ${fmtMoney(ccSale)} | Credit: ${fmtMoney(creditSale)}`;
+    document.getElementById('kpiExpenses').textContent = fmtMoney(totalExp);
+    document.getElementById('kpiExpBreak').textContent = `Cash: ${fmtMoney(cashExp)} | UPI: ${fmtMoney(upiExp)} | Credit: ${fmtMoney(creditBuy)}`;
+
+    const netEl = document.getElementById('kpiNet');
+    netEl.textContent = fmtMoney(net);
+    netEl.className = 'kpi-value ' + (net >= 0 ? 'text-green' : 'text-red');
+    document.getElementById('kpiCashNet').textContent = `Cash in Hand: ${fmtMoney(cashSale - cashExp)}`;
+
+    document.getElementById('kpiCreditSale').textContent = `To Receive: ${fmtMoney(creditSale)}`;
+    document.getElementById('kpiCreditBuy').textContent = `Credit Purchase (To Pay): ${fmtMoney(creditBuy)}`;
+
+    document.getElementById('recCashSale').textContent = fmtMoney(cashSale);
+    document.getElementById('recOnlineSale').textContent = fmtMoney(onlineSale);
+    document.getElementById('recCCSale').textContent = fmtMoney(ccSale);
+    document.getElementById('recCreditSale').textContent = fmtMoney(creditSale);
+    document.getElementById('recCashExp').textContent = fmtMoney(cashExp);
+    document.getElementById('recUpiExp').textContent = fmtMoney(upiExp);
+    document.getElementById('recCreditBuy').textContent = fmtMoney(creditBuy);
+
+    const sortedCats = Object.entries(expCats).sort((a, b) => b[1] - a[1]);
+    document.getElementById('expCatBox').innerHTML = sortedCats.length
+      ? sortedCats.map(([k, v]) => `<div class="cat-row"><span>${escapeHtml(k)}</span><strong>${fmtMoney(v)}</strong></div>`).join('')
+      : '<div style="font-size:0.8rem;color:var(--muted);">No expenses or purchases in this period.</div>';
+
+    const tbody = document.getElementById('ledgerBody');
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px;">No entries found.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = list.map(x => {
+      const isCredit = x.mode === 'Credit' || x.mode === 'Credit Purchase';
+      const badgeClass = isCredit ? 'badge-credit' : (x.type === 'sale' ? 'badge-sale' : 'badge-expense');
+      const badgeLabel = isCredit ? 'CREDIT' : x.type.toUpperCase();
+      return `
+        <tr>
+          <td>${escapeHtml(x.date)}</td>
+          <td><span class="badge ${badgeClass}">${badgeLabel}</span></td>
+          <td><strong>${escapeHtml(x.category)}</strong></td>
+          <td>${escapeHtml(x.mode)}</td>
+          <td>${escapeHtml(x.remarks)}</td>
+          <td style="font-weight:700;" class="${x.type === 'sale' ? 'text-green' : 'text-red'}">${x.type === 'sale' ? '+' : '-'}${fmtMoney(x.amount)}</td>
+          <td class="no-print" style="white-space:nowrap;">
+            ${isCredit ? `<button class="btn-settle btn-sm" onclick="settleCredit('${x.id}')">Settle</button> ` : ''}
+            <button class="btn-outline btn-sm" onclick="deleteEntry('${x.id}')">Delete</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function openCloudModal() {
+    document.getElementById('cfgDevice').value = cfg.device || 'Device';
+    document.getElementById('cfgCurrency').value = cfg.currency || '₹';
+    document.getElementById('cfgUrl').value = cfg.url || '';
+    document.getElementById('cfgKey').value = cfg.key || '';
+    document.getElementById('cloudModal').classList.add('open');
+  }
+  function closeCloudModal() { document.getElementById('cloudModal').classList.remove('open'); }
+  function saveCloudSettings() {
+    cfg = {
+      device: document.getElementById('cfgDevice').value.trim() || 'Device',
+      currency: document.getElementById('cfgCurrency').value || '₹',
+      url: document.getElementById('cfgUrl').value.trim(),
+      key: document.getElementById('cfgKey').value.trim()
+    };
+    localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
+    closeCloudModal();
+    initSupabase();
+    render();
+  }
+
+  function exportCSV() {
+    const list = getFiltered();
+    if (!list.length) return alert('No data to export.');
+    const headers = ['Date','Type','Particular / Sale Type','Payment Mode','Remarks / Party','Amount'];
+    const rows = list.map(x => [
+      x.date, x.type, x.category, x.mode, x.remarks, x.type === 'sale' ? x.amount : -x.amount
+    ].map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(','));
+    const blob = new Blob([[headers.join(','), ...rows].join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `CC-Chai-Chick-${todayStr()}.csv`;
+    a.click();
+  }
+
+  init();
+</script>
+</body>
+</html>
